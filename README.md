@@ -92,7 +92,7 @@ snakemake --help | grep -A3 local-gpu
 
 ## Authors
 
-Christian Ramirez (christian.ramirez1@umassmed.edu)
+Christian Ramirez ([@ramirc0](https://github.com/ramirc0))
 
 ## Version History
 
