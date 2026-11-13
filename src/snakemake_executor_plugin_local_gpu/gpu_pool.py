@@ -122,11 +122,6 @@ class GpuPool:
         ...     print(first, second)
         ['GPU-aaaa'] ['GPU-bbbb']
         """
-        if count > len(self.uuids):
-            raise WorkflowError(
-                f"{holder} requests {count} GPUs, but the local-gpu executor "
-                f"has only {len(self.uuids)}: {','.join(self.uuids)}."
-            )
         locks = self._acquire(count, holder)
         uuids = list(locks)
         self.logger.info(f"Leased GPUs {','.join(uuids)} to {holder}.")
@@ -142,15 +137,20 @@ class GpuPool:
         waiting = False
         while True:
             with self._scan_lock:
-                locks = self._try_acquire(count)
+                locks = self._try_acquire(count, holder)
             if locks is not None:
                 return locks
             if not waiting:
-                self.logger.info(f"{holder} waits for {count} free GPUs.")
+                self.logger.info(f"{holder} waits for free GPUs ({count} needed).")
                 waiting = True
             time.sleep(self.poll_interval)
 
-    def _try_acquire(self, count: int) -> dict[str, int] | None:
+    def _try_acquire(self, count: int, holder: str) -> dict[str, int] | None:
+        if count > len(self.uuids):
+            raise WorkflowError(
+                f"{holder} requests {count} GPUs, but the local-gpu executor "
+                f"has only {len(self.uuids)}: {','.join(self.uuids)}."
+            )
         busy = nvidia_smi.busy_uuids()
         locks = {}
         for uuid in self.uuids:

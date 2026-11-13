@@ -145,7 +145,11 @@ def test_lease_waits_for_a_release(new_pool, caplog):
             time.sleep(0.3)
             assert not waiter.done()
         assert waiter.result(timeout=5) == ["GPU-aaaa"]
-    waits = [r for r in caplog.records if r.message == "job 2 waits for 1 free GPUs."]
+    waits = [
+        r
+        for r in caplog.records
+        if r.message == "job 2 waits for free GPUs (1 needed)."
+    ]
     assert len(waits) == 1
 
 
@@ -182,3 +186,18 @@ def test_locks_are_released_on_exception(new_pool, lock_dir):
     with pytest.raises(RuntimeError), new_pool().lease(1, "job 1"):
         raise RuntimeError
     assert not is_locked(lock_dir, "GPU-aaaa")
+
+
+def test_concurrent_first_leases_resolve_the_pool_once(new_pool, nvidia_smi):
+    nvidia_smi.reports_gpus("GPU-aaaa", "GPU-bbbb", "GPU-cccc", "GPU-dddd")
+    pool = new_pool()
+    all_start = threading.Barrier(4)
+
+    def lease_one(holder):
+        all_start.wait(timeout=5)
+        return lease_and_release(pool, 1, holder)
+
+    with ThreadPoolExecutor(4) as threads:
+        list(threads.map(lease_one, [f"job {i}" for i in range(4)]))
+    gpu_queries = [args for _, args in nvidia_smi.calls if "--query-gpu" in args]
+    assert len(gpu_queries) == 1
