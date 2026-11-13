@@ -5,11 +5,20 @@ description = "Snakemake local executor that leases free GPUs of a shared node t
 authors = [
     { name = "Christian Ramirez", email = "christian.ramirez1@umassmed.edu" }
 ]
-requires-python = ">=3.11"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11,<4.0"
 dependencies = [
+    "attrs",
     "snakemake",
+    "snakemake-interface-common>=1.24,<2",
     "snakemake-interface-executor-plugins>=9.4,<10",
 ]
+
+[project.urls]
+Repository = "https://github.com/ramirc0/snakemake-executor-plugin-local-gpu"
+Documentation = "https://snakemake.github.io/snakemake-plugin-catalog/plugins/executor/local-gpu.html"
 
 [build-system]
 requires = ["uv_build>=0.13.4,<0.14.0"]
@@ -17,7 +26,9 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "pyrefly",
     "pytest",
+    "pytest-cov",
     "ruff",
 ]
 
@@ -31,3 +42,7 @@ snakemake = { git = "https://github.com/snakemake/snakemake.git", rev = "86c3113
 [tool.pytest.ini_options]
 addopts = ["--doctest-modules"]
 testpaths = ["src", "tests"]
+
+[tool.coverage.report]
+exclude_lines = ["pass", "\\.\\.\\."]
+fail_under = 90.0
