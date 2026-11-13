@@ -96,7 +96,7 @@ Christian Ramirez ([@ramirc0](https://github.com/ramirc0))
 
 ## Version History
 
-See the [release history](https://github.com/ramirc0/snakemake-executor-plugin-local-gpu/releases).
+See [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
