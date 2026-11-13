@@ -1,0 +1,33 @@
+[project]
+name = "snakemake-executor-plugin-local-gpu"
+version = "0.1.0"
+description = "Snakemake local executor that leases free GPUs of a shared node to GPU jobs"
+authors = [
+    { name = "Christian Ramirez", email = "christian.ramirez1@umassmed.edu" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "snakemake",
+    "snakemake-interface-executor-plugins>=9.4,<10",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.4,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.uv]
+exclude-newer = "7d"
+exclude-newer-package = { certifi = false }
+
+[tool.uv.sources]
+snakemake = { git = "https://github.com/snakemake/snakemake.git", rev = "86c31130239381055fea37fe0c369c6775cb75c3" }
+
+[tool.pytest.ini_options]
+addopts = ["--doctest-modules"]
+testpaths = ["src", "tests"]
