@@ -61,7 +61,8 @@ class ExecutorSettings(ExecutorSettingsBase):
     poll_interval: Optional[float] = field(  # noqa: UP045
         default=15.0,
         metadata={
-            "help": "Seconds between attempts while a job waits for free GPUs.",
+            "help": "Seconds between attempts while a job waits for free GPUs. "
+            "Default: 15.",
             "env_var": False,
             "required": False,
         },
@@ -70,7 +71,7 @@ class ExecutorSettings(ExecutorSettingsBase):
         default=Path(f"/tmp/snakemake-local-gpu-{getpass.getuser()}"),
         metadata={
             "help": "Directory of the GPU lock files. Drivers that share it "
-            "never hand out the same GPU.",
+            "never hand out the same GPU. Default: /tmp/snakemake-local-gpu-<user>.",
             "env_var": False,
             "required": False,
         },
