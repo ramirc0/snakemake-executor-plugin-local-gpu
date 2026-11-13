@@ -46,3 +46,6 @@ testpaths = ["src", "tests"]
 [tool.coverage.report]
 exclude_lines = ["pass", "\\.\\.\\."]
 fail_under = 90.0
+
+[tool.coverage.run]
+patch = ["subprocess"]
