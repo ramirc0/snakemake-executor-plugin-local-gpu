@@ -201,3 +201,13 @@ def test_concurrent_first_leases_resolve_the_pool_once(new_pool, nvidia_smi):
         list(threads.map(lease_one, [f"job {i}" for i in range(4)]))
     gpu_queries = [args for _, args in nvidia_smi.calls if "--query-gpu" in args]
     assert len(gpu_queries) == 1
+
+
+def test_failing_nvidia_smi_fails(new_pool, tmp_path, monkeypatch):
+    failing = tmp_path / "failing" / "nvidia-smi"
+    failing.parent.mkdir()
+    failing.write_text("#!/bin/sh\necho 'driver not loaded' >&2\nexit 9\n")
+    failing.chmod(0o755)
+    monkeypatch.setenv("PATH", str(failing.parent))
+    with pytest.raises(WorkflowError, match="exit code 9: driver not loaded"):
+        _ = new_pool().uuids
