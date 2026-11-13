@@ -4,7 +4,6 @@ import fcntl
 import logging
 import os
 import threading
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import cached_property
@@ -58,6 +57,7 @@ class GpuPool:
         self.poll_interval = poll_interval
         self.logger = logger
         self._scan_lock = threading.Lock()
+        self._stopped = threading.Event()
 
     @cached_property
     def uuids(self) -> list[str]:
@@ -112,7 +112,8 @@ class GpuPool:
         Raises
         ------
         WorkflowError
-            If the pool holds fewer than ``count`` GPUs.
+            If the pool holds fewer than ``count`` GPUs, or if
+            `stop_waiting` ends the wait.
 
         Examples
         --------
@@ -143,7 +144,31 @@ class GpuPool:
             if not waiting:
                 self.logger.info(f"{holder} waits for free GPUs ({count} needed).")
                 waiting = True
-            time.sleep(self.poll_interval)
+            if self._stopped.wait(self.poll_interval):
+                raise WorkflowError(
+                    f"{holder} stopped waiting for free GPUs because Snakemake "
+                    "shuts down."
+                )
+
+    def stop_waiting(self) -> None:
+        """Make every lease that waits, or will wait, for GPUs fail.
+
+        Leases that hold GPUs keep them. Waiting leases raise within
+        ``poll_interval`` seconds, so a driver that shuts down does not
+        wait for GPUs that other jobs keep busy.
+
+        Examples
+        --------
+        >>> import logging
+        >>> pool = GpuPool(None, getfixture("tmp_path"), 15, logging.getLogger())
+        >>> pool.stop_waiting()
+        >>> with pool.lease(2, "job 1"), pool.lease(1, "job 2"):  # doctest: +ELLIPSIS
+        ...     pass
+        Traceback (most recent call last):
+            ...
+        snakemake_interface_common.exceptions.WorkflowError: job 2 stopped waiting ...
+        """
+        self._stopped.set()
 
     def _try_acquire(self, count: int, holder: str) -> dict[str, int] | None:
         if count > len(self.uuids):

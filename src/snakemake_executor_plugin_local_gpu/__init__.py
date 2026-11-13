@@ -169,6 +169,35 @@ class Executor(local.Executor):
             else:
                 super().cached_or_run(job, self._spawn_job_on, job, visible_devices)
 
+    def cancel(self):
+        """Stop the jobs, including those that still wait for GPUs.
+
+        Snakemake calls this on Ctrl-C or an error. The local executor then
+        waits for its job threads, so jobs that wait for GPUs must give up.
+
+        Examples
+        --------
+        >>> import asyncio, logging
+        >>> from types import SimpleNamespace as Namespace
+        >>> workflow = Namespace(
+        ...     dag=None,
+        ...     main_snakefile="Snakefile",
+        ...     executor_settings=ExecutorSettings(lock_dir=getfixture("tmp_path")),
+        ...     execution_settings=Namespace(use_threads=False, keep_incomplete=False),
+        ...     resource_settings=Namespace(cores=4),
+        ...     global_resources={"gpu": 2},
+        ... )
+        >>> executor = Executor(workflow, logging.getLogger("snakemake"))
+        >>> executor.cancel()
+        >>> with executor.gpus.lease(2, "job 1"), executor.gpus.lease(1, "job 2"):
+        ...     pass  # doctest: +ELLIPSIS
+        Traceback (most recent call last):
+            ...
+        snakemake_interface_common.exceptions.WorkflowError: job 2 stopped waiting ...
+        """
+        self.gpus.stop_waiting()
+        super().cancel()
+
     def _spawn_job_on(self, job, visible_devices):
         cmd = self.format_job_exec(job)
         self.logger.debug(f"spawned job: {cmd}")

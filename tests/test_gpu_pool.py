@@ -211,3 +211,26 @@ def test_failing_nvidia_smi_fails(new_pool, tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(failing.parent))
     with pytest.raises(WorkflowError, match="exit code 9: driver not loaded"):
         _ = new_pool().uuids
+
+
+def test_stop_waiting_ends_a_waiting_lease(new_pool, nvidia_smi):
+    nvidia_smi.reports_busy("GPU-aaaa", "GPU-bbbb")
+    pool = new_pool()
+    outcome = []
+
+    def lease_one():
+        try:
+            outcome.append(lease_and_release(pool, 1, "job 1"))
+        except WorkflowError as e:
+            outcome.append(e)
+
+    # A daemon thread, so that a lease that never stops cannot hang pytest.
+    waiter = threading.Thread(target=lease_one, daemon=True)
+    waiter.start()
+    time.sleep(0.2)
+    pool.stop_waiting()
+    waiter.join(timeout=1)
+    assert not waiter.is_alive()
+    (error,) = outcome
+    assert isinstance(error, WorkflowError)
+    assert "job 1" in str(error)

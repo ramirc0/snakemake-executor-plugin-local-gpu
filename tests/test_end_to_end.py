@@ -1,7 +1,9 @@
 import fcntl
+import signal
 import subprocess
 import sys
 import textwrap
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -20,7 +22,7 @@ def workdir(tmp_path):
     return workdir
 
 
-def run_snakemake(workdir, snakefile, *args, succeeds=True):
+def start_driver(workdir, snakefile, *args, stdout=subprocess.PIPE):
     (workdir / "Snakefile").write_text(textwrap.dedent(snakefile))
     command = [
         sys.executable,
@@ -36,13 +38,13 @@ def run_snakemake(workdir, snakefile, *args, succeeds=True):
         "1",
         *args,
     ]
-    driver = subprocess.Popen(
-        command,
-        cwd=workdir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+    return subprocess.Popen(
+        command, cwd=workdir, stdout=stdout, stderr=subprocess.STDOUT, text=True
     )
+
+
+def run_snakemake(workdir, snakefile, *args, succeeds=True):
+    driver = start_driver(workdir, snakefile, *args)
     log, _ = driver.communicate(timeout=120)
     assert (driver.returncode == 0) == succeeds, log
     return SimpleNamespace(pid=driver.pid, log=log)
@@ -229,3 +231,34 @@ def test_failed_gpu_jobs_release_their_gpus(workdir):
     for uuid in ["GPU-aaaa", "GPU-bbbb"]:
         with open(workdir / "locks" / f"{uuid}.lock") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+
+def test_interrupt_ends_a_driver_that_waits_for_gpus(workdir, nvidia_smi):
+    nvidia_smi.reports_busy("GPU-aaaa", "GPU-bbbb")
+    log = workdir / "driver.log"
+    with open(log, "w") as stdout:
+        driver = start_driver(
+            workdir,
+            """
+            rule gpu:
+                output: "gpu.txt"
+                resources: gpu=1
+                shell: "touch {output}"
+            """,
+            "--resources",
+            "gpu=2",
+            stdout=stdout,
+        )
+    try:
+        deadline = time.monotonic() + 30
+        while "waits for free GPUs" not in log.read_text():
+            assert time.monotonic() < deadline, log.read_text()
+            assert driver.poll() is None, log.read_text()
+            time.sleep(0.1)
+        driver.send_signal(signal.SIGINT)
+        driver.wait(timeout=10)
+    finally:
+        driver.kill()
+        driver.wait()
+    assert driver.returncode != 0
+    assert not (workdir / "gpu.txt").exists()
