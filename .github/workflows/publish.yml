@@ -1,0 +1,21 @@
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # PyPI's trusted publisher for snakemake-executor-plugin-local-gpu names this environment.
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv publishes no major tags since v8, only immutable release tags.
+      - uses: astral-sh/setup-uv@v10.2.0
+      # PyPI never accepts a version twice, so a tag that disagrees with pyproject.toml must not publish.
+      - run: test "${GITHUB_REF_NAME#v}" = "$(uv version --short)"
+      - run: uv build
+      - run: uv publish --trusted-publishing always
